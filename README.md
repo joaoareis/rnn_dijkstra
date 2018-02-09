@@ -9,8 +9,8 @@ This model learns the Dijkstra shortest path algorithm using an RNN Seq2Seq arch
 1. Run `jupyter-notebook rnn.ipynb`
 
 ## Dependencies
-* scikit-learn
+* matplotlib
 * numpy
-* pandas
+* torch
 * jupyter notebook
-* ipython
+
