@@ -1,6 +1,9 @@
 from collections import defaultdict
 import itertools
 import random
+from torch.autograd import Variable
+import torch
+import rnn_util
 
 class Graph:
     def __init__(self):
@@ -120,19 +123,60 @@ def BuildDataset(links,from_node,to_node):
         labels.append(next_hop)
     return samples,labels
 
-def BuildDatatasetRNN(g,nr_samples,verbose=False):
+def BuildDatatasetRNN(g,nr_samples,verbose=False,torch_format=True):
     X = []
     y = []
+    EOS_token = 1000
     for i in range(nr_samples):
         from_node = random.randint(0,len(g.nodes))
         n,p = dijsktra(g,from_node)
         to_node = random.randint(0,len(g.nodes))
         if to_node not in p:
-            path= [-1]
+            path = [989]
         else:
             path = path_to_node(p,from_node,to_node,include_from=True)
-        X.append([from_node,to_node])
+        path.append(EOS_token)
+        x_path = [from_node,to_node,EOS_token]
+        if torch_format:
+            path = Variable(torch.LongTensor(path))
+            x_path = Variable(torch.LongTensor(x_path))
+        X.append(x_path)
         y.append(path)
         if i%100==0 and verbose:
             print(i/nr_samples*100)
     return X,y
+
+def checkValidPath(g,path):
+    curr_node = path[0]
+    for i in range(1,len(path)):
+        if path[i] in g.edges[curr_node]:
+            curr_node = path[i]
+        else:
+             return False
+    return True
+
+def checkAccuracy(y_true,preds):
+    corrects = 0
+    for i in range(len(y_true)):
+        if list(y_true[i])==preds[i]:
+            corrects += 1
+    return corrects/len(y_true)
+
+def getPreds(encoder,decoder,X):
+    preds = []
+    for x in X:
+        pred, _ = rnn_util.evaluate(encoder, decoder,x)
+        pred = pred[:-1]
+        preds.append(pred)
+    return preds
+
+def getNumberValids(g,preds):
+    valids = 0
+    for pred in preds:
+        if checkValidPath(g,pred[:-1]):
+            valids += 1
+    return valids
+
+def splitTrainTest(X,y,p=0.3):
+    nr_train = int(len(X)*(1-p))
+    return X[:nr_train],y[:nr_train],X[nr_train:],y[nr_train:]
